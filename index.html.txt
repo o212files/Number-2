@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceQuest - Intonation Game</title>
+    <style>
+        /* --- DESIGN SYSTEM & CSS VARIABLES --- */
+        :root {
+            --bg-dark: #121214;
+            --studio-panel: #1e1e24;
+            --accent-neon: #00ffcc;
+            --accent-glow: rgba(0, 255, 204, 0.4);
+            --text-light: #f5f5f7;
+            --text-muted: #a0a0aa;
+            --correct-green: #39ff14;
+            --incorrect-red: #ff3131;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            font-family: var(--font-family);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* --- GLOBAL LAYOUT --- */
+        .container {
+            width: 90%;
+            max-width: 900px;
+            background: var(--studio-panel);
+            border: 2px solid #333;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+            position: relative;
+            z-index: 10;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- THEATRE CURTAIN ANIMATION --- */
+        .curtain-layer {
+            position: fixed;
+            top: 0;
+            width: 50vw;
+            height: 100vh;
+            background: linear-gradient(to right, #7a0010, #d90429, #4a000a);
+            z-index: 100;
+            transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        #curtain-left { left: 0; transform: translateX(0); border-right: 3px solid #ffd700; }
+        #curtain-right { right: 0; transform: translateX(0); border-left: 3px solid #ffd700; }
+        
+        body.game-started #curtain-left { transform: translateX(-100%); }
+        body.game-started #curtain-right { transform: translateX(100%); }
+
+        /* --- TYPOGRAPHY & BUTTONS --- */
+        h1 {
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-neon);
+            text-shadow: 0 0 10px var(--accent-glow);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        p {
+            line-height: 1.6;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .btn {
+            background: transparent;
+            color: var(--text-light);
+            border: 2px solid var(--accent-neon);
+            padding: 12px 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            display: inline-block;
+            margin: 10px 0;
+        }
+
+        .btn:hover {
+            background: var(--accent-neon);
+            color: var(--bg-dark);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            border-color: #555;
+            color: #555;
+            cursor: not-allowed;
+            background: transparent;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- GAME HEADER HUD --- */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .hud-score { color: var(--accent-neon); }
+
+        /* --- SCREEN: WELCOME --- */
+        #welcome-screen {
+            text-align: center;
+            padding: 20px;
+        }
+        .intro-text {
+            max-width: 600px;
+            margin: 0 auto 30px auto;
+            color: var(--text-light);
+            font-size: 1.2rem;
+        }
+
+        /* --- SCREEN: GAMEPLAY STUDIO --- */
+        .studio-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        /* Audio & Video Elements */
+        .media-box {
+            background: #151518;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+        }
+        audio, video {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+        video {
+            background: #000;
+            max-height: 280px;
+        }
+
+        /* Options Grid */
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .option-btn {
+            background: #25252b;
+            color: var(--text-light);
+            border: 1px solid #444;
+            padding: 15px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .option-btn:hover:not(:disabled) {
+            border-color: var(--accent-neon);
+            background: #2a2a35;
+        }
+        .option-btn.correct {
+            background: rgba(57, 255, 20, 0.2) !important;
+            border-color: var(--correct-green) !important;
+            color: var(--correct-green);
+            font-weight: bold;
+        }
+        .option-btn.incorrect {
+            background: rgba(255, 49, 49, 0.2) !important;
+            border-color: var(--incorrect-red) !important;
+            color: var(--incorrect-red);
+        }
+
+        /* Feedback Display */
+        .feedback-banner {
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+            min-height: 30px;
+        }
+        .feedback-banner.correct { color: var(--correct-green); }
+        .feedback-banner.incorrect { color: var(--incorrect-red); }
+
+        /* Dubbing Widget */
+        .dubbing-panel {
+            background: #1a1a20;
+            border: 1px dashed var(--accent-neon);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .mic-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #25252b;
+            border: 2px solid var(--text-muted);
+            color: var(--text-light);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+        .mic-btn.recording {
+            background: var(--incorrect-red);
+            border-color: #fff;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,49,49,0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255,49,49,0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,49,49,0); }
+        }
+        .dub-feedback {
+            color: #e0e0e0;
+            font-style: italic;
+            margin-top: 10px;
+            min-height: 24px;
+        }
+
+        /* Navigation block */
+        .nav-panel {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        /* --- SCREEN: ENDING --- */
+        #ending-screen {
+            text-align: center;
+            padding: 20px;
+        }
+        .final-score-display {
+            font-size: 4rem;
+            font-weight: bold;
+            color: var(--accent-neon);
+            margin: 20px 0;
+            text-shadow: 0 0 15px var(--accent-glow);
+        }
+        .evaluation-msg {
+            font-size: 1.3rem;
+            margin-bottom: 30px;
+            color: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="curtain-layer" id="curtain-left"></div>
+    <div class="curtain-layer" id="curtain-right"></div>
+
+    <div class="container">
+        
+        <div id="welcome-screen">
+            <h1>VoiceQuest</h1>
+            <p class="intro-text">
+                Welcome to VoiceQuest! Lights. Camera. Action. Welcome future voice actors! Today, your mission is to bring scenes to life using the power of intonation.
+            </p>
+            <button class="btn" id="start-btn">Start Mission</button>
+        </div>
+
+        <div id="game-screen" class="hidden">
+            <div class="hud">
+                <div>Scene: <span id="scene-number">1</span> / 12</div>
+                <div>Score: <span id="hud-score" class="hud-score">0</span></div>
+            </div>
+
+            <div class="studio-layout">
+                <div id="listening-section">
+                    <h3>Part 1: Listen to the Line</h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 10px;">Listen carefully to the voice context below and determine the emotion or intonation type.</p>
+                    
+                    <div class="media-box" id="audio-container">
+                        <audio id="audio-player" controls src=""></audio>
+                    </div>
+
+                    <div class="options-grid" id="options-container"></div>
+                </div>
+
+                <div id="reveal-section" class="hidden">
+                    <hr style="border-color: #333; margin: 20px 0;">
+                    <h3>Part 2: Original Scene Context</h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 10px;">Watch the real scene video to confirm the environment, facial expressions, and body language.</p>
+                    
+                    <div class="media-box">
+                        <video id="video-player" controls src=""></video>
+                    </div>
+                </div>
+
+                <div id="dubbing-section" class="hidden">
+                    <hr style="border-color: #333; margin: 20px 0;">
+                    <div class="dubbing-panel">
+                        <h3>Part 3: Match the Intonation!</h3>
+                        <p style="font-size: 0.95rem; margin-bottom: 15px;">Tap the microphone, say the line matching the character's voice style, and listen to yourself back!</p>
+                        
+                        <div>
+                            <button class="mic-btn" id="mic-button" title="Record Voice">🎤</button>
+                        </div>
+                        <div id="recording-status" style="font-size: 0.9rem; color: var(--text-muted);">Click to start recording</div>
+                        
+                        <audio id="dub-playback" controls class="hidden" style="margin-top:15px;"></audio>
+                        <div class="dub-feedback" id="dub-feedback-msg"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feedback-banner" id="emotion-feedback"></div>
+
+            <div class="nav-panel">
+                <button class="btn hidden" id="next-btn">Next Scene &rarr;</button>
+            </div>
+        </div>
+
+        <div id="ending-screen" class="hidden">
+            <h1>Wrap Up!</h1>
+            <p>You have wrapped up production on all 12 scenes! Let's check your studio stats:</p>
+            <div class="final-score-display"><span id="final-score">0</span> / 120</div>
+            <div class="evaluation-msg" id="final-evaluation"></div>
+            <button class="btn" id="replay-btn">Play Again</button>
+        </div>
+
+    </div>
+
+    <script>
+        const voiceQuestData = [
+            {
+                id: 1,
+                audioSrc: "scene1.mp3", 
+                videoSrc: "https://docs.google.com/uc?export=download&id=12aJbBJtt6xBghQzzWH12diI1PW7N51kD", 
+                options: ["Happy", "Sad", "Desperate", "Calm"],
+                correctAnswer: "Desperate"
+            },
+            {
+                id: 2,
+                audioSrc: "scene2.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1PnvfG4BxR3_cRb7HA8MmQCqA-c6q0Xt5",
+                options: ["Excited", "Confused", "Scared", "Angry"],
+                correctAnswer: "Confused"
+            },
+            {
+                id: 3,
+                audioSrc: "scene3.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1qks-D5c35EsAhV5mOXGUl-84npu316w7",
+                options: ["Brave", "Cheerful", "Surprised", "Scared"],
+                correctAnswer: "Scared"
+            },
+            {
+                id: 4,
+                audioSrc: "scene4.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1qlIDERHZiQyqC2JLGWwFt2wEVp_P610R",
+                options: ["Happy", "Surprised", "Confused", "Angry"],
+                correctAnswer: "Angry"
+            },
+            {
+                id: 5,
+                audioSrc: "scene5.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1HUb-j5wUcRFzihtQBa6_Z93kQXxYAXm1",
+                options: ["Grumpy", "Bored", "Curious", "Shy"],
+                correctAnswer: "Curious"
+            },
+            {
+                id: 6,
+                audioSrc: "scene6.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1Qv19io9blA404LdbvESJHqk7l598V9zc",
+                options: ["Surprised", "Relieved", "Angry", "Sad"],
+                correctAnswer: "Surprised"
+            },
+            {
+                id: 7,
+                audioSrc: "scene7.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1e_U1JADhv16jB00XX0SkNNEwqLNv0e79",
+                options: ["Nervous", "Sarcastic", "Disgusted", "Happy"],
+                correctAnswer: "Sarcastic"
+            },
+            {
+                id: 8,
+                audioSrc: "scene8.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1FVyxfNgAZlQT67we8JYrf76uO_83H956",
+                options: ["Nervous", "Excited", "Calm", "Exhausted"],
+                correctAnswer: "Excited"
+            },
+            {
+                id: 9,
+                audioSrc: "scene9.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1LJZzUnAantQnnnTekjilWBGfiFLGbUI",
+                options: ["Sad", "Sarcastic", "Angry", "Happy"],
+                correctAnswer: "Sad"
+            },
+            {
+                id: 10,
+                audioSrc: "scene10.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1T2M6139gFr7FcxD5H7Yf4iC3AhqOlxzr",
+                options: ["Disappointed", "Curious", "Suspicious", "Joyful"],
+                correctAnswer: "Suspicious"
+            },
+            {
+                id: 11,
+                audioSrc: "scene11.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=1wJv08-zyEW3yZbOZdxWurSr3iEXqetTt",
+                options: ["Happy", "Relieved", "Guilty", "Sleepy"],
+                correctAnswer: "Guilty"
+            },
+            {
+                id: 12,
+                audioSrc: "scene12.mp3",
+                videoSrc: "https://docs.google.com/uc?export=download&id=10wzHSlpxemaMpDs0MHYriMITE-vW4s96",
+                options: ["Shy", "Annoyed", "Angry", "Anxious"],
+                correctAnswer: "Anxious"
+            }
+        ];
+
+        const correctFeedbackPool = [
+            "You’re so cool!", "Amazing performance!", "That was spot on!", "You nailed it!",
+            "Brilliant deduction!", "Incredible ears!", "You have the gift!", "Hollywood is calling!",
+            "Perfect analysis!", "Magnificent work!", "Sensational!", "Top tier acting insight!"
+        ];
+
+        const incorrectFeedbackPool = [
+            "Uh oh! Better luck next time!", "Nice try!", "Not quite, keep going!", "You can do this!",
+            "Don't lose heart, keep listening!", "A minor setback, try the next scene!", "Close, but not it!", 
+            "Listen closely to the pitch next time!", "Keep your chin up!", "We will fix it in the next cut!",
+            "Practice makes perfect!", "Let's refine your focus on the next line!"
+        ];
+
+        const dubbingFeedbackPool = [
+            "You’re so close!",          
+            "You’re doing great!",        
+            "You’re so good at this!",   
+            "Spectacular adaptation!",   
+            "Oh no! Try again!"          
+        ];
+
+        let currentQuestionIndex = 0;
+        let totalScore = 0;
+        let dubbingAttemptsThisScene = 0;
+        let isRecording = false;
+        
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        const bodyEl = document.body;
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endingScreen = document.getElementById('ending-screen');
+        
+        const startBtn = document.getElementById('start-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const replayBtn = document.getElementById('replay-btn');
+        const micButton = document.getElementById('mic-button');
+
+        const sceneNumDisplay = document.getElementById('scene-number');
+        const hudScoreDisplay = document.getElementById('hud-score');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const finalEvaluationDisplay = document.getElementById('final-evaluation');
+
+        const audioPlayer = document.getElementById('audio-player');
+        const videoPlayer = document.getElementById('video-player');
+        const optionsContainer = document.getElementById('options-container');
+        const emotionFeedback = document.getElementById('emotion-feedback');
+        
+        const revealSection = document.getElementById('reveal-section');
+        const dubbingSection = document.getElementById('dubbing-section');
+        const recordingStatus = document.getElementById('recording-status');
+        const dubPlayback = document.getElementById('dub-playback');
+        const dubFeedbackMsg = document.getElementById('dub-feedback-msg');
+
+        startBtn.addEventListener('click', startGame);
+        nextBtn.addEventListener('click', moveToNextScene);
+        replayBtn.addEventListener('click', resetGame);
+        micButton.addEventListener('click', handleMicrophoneToggle);
+
+        function startGame() {
+            bodyEl.classList.add('game-started');
+            setTimeout(() => {
+                welcomeScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+                loadScene(currentQuestionIndex);
+            }, 600);
+        }
+
+        function loadScene(index) {
+            optionsContainer.innerHTML = '';
+            emotionFeedback.textContent = '';
+            emotionFeedback.className = 'feedback-banner';
+            
+            revealSection.classList.add('hidden');
+            box = dubbingSection.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+            
+            dubPlayback.classList.add('hidden');
+            dubPlayback.src = '';
+            dubFeedbackMsg.textContent = '';
+            dubbingAttemptsThisScene = 0;
+            
+            audioPlayer.pause();
+            videoPlayer.pause();
+
+            const currentScene = voiceQuestData[index];
+            sceneNumDisplay.textContent = index + 1;
+            
+            audioPlayer.src = currentScene.audioSrc;
+            videoPlayer.src = currentScene.videoSrc;
+            audioPlayer.load();
+            videoPlayer.load();
+
+            currentScene.options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-btn';
+                button.textContent = option;
+                button.addEventListener('click', () => evaluateChoice(button, option, currentScene.correctAnswer));
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function evaluateChoice(selectedButton, selectedValue, correctValue) {
+            const allButtons = optionsContainer.querySelectorAll('.option-btn');
+            allButtons.forEach(btn => btn.disabled = true);
+            
+            audioPlayer.pause();
+
+            if (selectedValue === correctValue) {
+                totalScore += 10;
+                hudScoreDisplay.textContent = totalScore;
+                selectedButton.classList.add('correct');
+                emotionFeedback.textContent = correctFeedbackPool[currentQuestionIndex % correctFeedbackPool.length];
+                emotionFeedback.className = "feedback-banner correct";
+            } else {
+                selectedButton.classList.add('incorrect');
+                allButtons.forEach(btn => {
+                    if (btn.textContent === correctValue) {
+                        btn.classList.add('correct');
+                    }
+                });
+                emotionFeedback.textContent = incorrectFeedbackPool[currentQuestionIndex % incorrectFeedbackPool.length];
+                emotionFeedback.className = "feedback-banner incorrect";
+            }
+
+            revealSection.classList.remove('hidden');
+            dubbingSection.classList.remove('hidden');
+            nextBtn.classList.remove('hidden');
+            
+            videoPlayer.play().catch(() => {});
+        }
+
+        function moveToNextScene() {
+            stopRecordingSession();
+            currentQuestionIndex++;
+            if (currentQuestionIndex < voiceQuestData.length) {
+                loadScene(currentQuestionIndex);
+            } else {
+                showEndingScreen();
+            }
+        }
+
+        bin = function showEndingScreen() {
+            gameScreen.classList.add('hidden');
+            endingScreen.classList.remove('hidden');
+            finalScoreDisplay.textContent = totalScore;
+
+            if (totalScore >= 100) {
+                finalEvaluationDisplay.textContent = "Incredible! You are ready for prime-time cinema! Perfect delivery execution.";
+            } else if (totalScore >= 70) {
+                finalEvaluationDisplay.textContent = "Great work! You have dynamic ranges and understand contextual clues perfectly.";
+            } else {
+                finalEvaluationDisplay.textContent = "Good try! Vocal intonation takes training. Practice again to find your perfect rhythm!";
+            }
+        }
+
+        function resetGame() {
+            currentQuestionIndex = 0;
+            totalScore = 0;
+            hudScoreDisplay.textContent = "0";
+            endingScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            loadScene(currentQuestionIndex);
+        }
+
+        async function handleMicrophoneToggle() {
+            if (!isRecording) {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    recordingStatus.textContent = "Microphone API not supported on this browser.";
+                    return;
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        dubPlayback.src = audioUrl;
+                        dubPlayback.classList.remove('hidden');
+                        
+                        dubbingAttemptsThisScene++;
+                        displayDubbingFeedback(dubbingAttemptsThisScene);
+                        
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    micButton.classList.add('recording');
+                    recordingStatus.textContent = "Recording... Speak now! Tap mic again to stop.";
+
+                } catch (err) {
+                    console.error("Microphone capture failure:", err);
+                    recordingStatus.textContent = "Microphone access denied. Enable permissions.";
+                    dubFeedbackMsg.textContent = dubbingFeedbackPool[4];
+                }
+            } else {
+                stopRecordingSession();
+            }
+        }
+
+        function stopRecordingSession() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                micButton.classList.remove('recording');
+                recordingStatus.textContent = "Recording saved! Play it back below.";
+            }
+        }
+
+        function displayDubbingFeedback(attemptIndex) {
+            let userFeedback = "";
+            if (attemptIndex === 1) {
+                userFeedback = dubbingFeedbackPool[0];
+            } else if (attemptIndex === 2) {
+                userFeedback = dubbingFeedbackPool[1];
+            } else if (attemptIndex === 3) {
+                userFeedback = dubbingFeedbackPool[2];
+            } else {
+                userFeedback = dubbingFeedbackPool[3];
+            }
+            dubFeedbackMsg.textContent = userFeedback;
+        }
+    </script>
+</body>
+</html>
